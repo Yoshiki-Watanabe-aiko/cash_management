@@ -1,0 +1,39 @@
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+
+# Logs
+logs/*.log
+
+# Backups (local DB dumps, never commit)
+backups/*.dump
+backups/*.sql
+
+# Imported source files (personal financial data, never commit)
+import/transactions/*
+import/assets/*
+!import/transactions/.gitkeep
+!import/assets/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+Desktop.ini
