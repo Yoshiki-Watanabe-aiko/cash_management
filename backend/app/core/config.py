@@ -28,6 +28,14 @@ class Settings(BaseSettings):
 
     cors_allow_origins: str = "http://localhost:5173,http://localhost:3000"
 
+    pg_dump_path: str = "pg_dump"
+    backup_dir: str = "../backups"
+    backup_daily_retention_days: int = 30
+    backup_month_end_retention_days: int = 365
+
+    batch_retry_count: int = 3
+    batch_retry_delay_seconds: float = 5.0
+
     @property
     def cors_allow_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]

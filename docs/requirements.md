@@ -77,6 +77,8 @@
    - 機関ごとの成功/失敗を`t_batch_logs.institution_results`（JSONB）に記録し、Discordへ毎回通知
    - 機関単位の処理は独立してtry/exceptで囲み、軽量リトライ（3回）を行い、1社の失敗が他社をブロックしない（[ADR 0008](../docs/adr/0008-batch-resilience-strategy.md)）
 
+**実装状況**: Phase 5で実装済み。`app/services/batch_orchestrator.py`が「MFME取引明細CSV取込／MFME資産評価CSV取込／残高スナップショット／振替検知／カードメール取込(個人用)／カードメール取込(事業用)／pg_dumpバックアップ」の7処理単位を独立したtry/except・軽量リトライ（既定3回・5秒間隔、`.env`の`BATCH_RETRY_COUNT`/`BATCH_RETRY_DELAY_SECONDS`で調整可）で実行し、結果を`t_batch_logs`へ記録した上でDiscordへサマリー通知する。処理単位の粒度や実装上のSAVEPOINT設計は[ADR 0011](../docs/adr/0011-batch-orchestration-unit-and-savepoints.md)を参照。DB接続自体が失敗する致命的なケースでは`app/cli/run_daily_import.py`の最上位try/exceptがDBを経由しない簡易Discord通知を送る。Windowsタスクスケジューラへの登録は`batch/register_task_scheduler.ps1`（管理者PowerShellで手動実行、要件2章の「時刻を逃した場合はできるだけ早く実行」「スリープ解除して実行」「ログオン時/起動時トリガー」を設定）で行う。バックアップ保存先は現状リポジトリ内`backups/`フォルダを既定とし、Google Drive同期フォルダへ変更する場合は`.env`の`BACKUP_DIR`を絶対パスで上書きする。
+
 ## 5. コア・ビジネスロジック
 
 ### 5.1 個人・事業の混在管理

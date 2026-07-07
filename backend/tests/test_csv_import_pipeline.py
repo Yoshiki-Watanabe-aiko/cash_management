@@ -94,6 +94,30 @@ def test_import_transactions_folder_skips_duplicate_across_runs(db_session, tmp_
     assert summary2.duplicate_skipped_count == 1
 
 
+def test_import_transactions_folder_isolates_one_bad_file_from_others(db_session, tmp_path):
+    account = _make_bank_account(db_session, "パイプライン口座C")
+
+    folder = tmp_path / "transactions"
+    folder.mkdir()
+    good_csv = _TXN_HEADER + f"1,2026/07/01,正常行,-1000,{account.account_name},食費,,,0,pipe-ok\n"
+    bad_csv = _TXN_HEADER + f"1,2026/07/01,壊れた行,不正な金額,{account.account_name},食費,,,0,pipe-bad\n"
+    (folder / "a_good.csv").write_text(good_csv, encoding="utf-8-sig")
+    (folder / "b_bad.csv").write_text(bad_csv, encoding="utf-8-sig")
+
+    summary = import_transactions_folder(db_session, folder, datetime.date(2026, 7, 8))
+
+    assert summary.files_processed == 1
+    assert summary.new_transaction_count == 1
+    assert summary.failed_files == ["b_bad.csv"]
+    assert not (folder / "a_good.csv").exists()
+    assert (folder / "b_bad.csv").exists()
+
+    txn = db_session.execute(
+        select(Transaction).where(Transaction.description == "正常行")
+    ).scalar_one()
+    assert txn.account_id == account.id
+
+
 def test_import_transactions_folder_with_no_files_is_a_noop(db_session, tmp_path):
     folder = tmp_path / "transactions_empty"
     folder.mkdir()
