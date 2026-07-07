@@ -69,6 +69,9 @@ class Account(Base):
     opening_balance_date: Mapped[datetime.date | None] = mapped_column(
         Date, comment="初期残高の基準日"
     )
+    moneyforward_account_name: Mapped[str | None] = mapped_column(
+        comment="マネーフォワードME連携時の口座表示名（CSVの「保有金融機関」列とのマッチングに使用。未設定の場合はaccount_nameで照合）"
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.current_timestamp(), comment="作成日時"
     )

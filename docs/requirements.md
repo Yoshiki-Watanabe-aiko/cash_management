@@ -144,6 +144,7 @@ CREATE TABLE m_accounts (
     balance_method VARCHAR(20),
     opening_balance NUMERIC(12, 2),
     opening_balance_date DATE,
+    moneyforward_account_name VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -159,6 +160,7 @@ COMMENT ON COLUMN m_accounts.tracks_balance IS '残高追跡対象フラグ（TR
 COMMENT ON COLUMN m_accounts.balance_method IS '残高算出方式（cumulative=初期残高+取引累積 / moneyforward=MF連携 / manual=手動入力）';
 COMMENT ON COLUMN m_accounts.opening_balance IS '初期残高（balance_method=cumulativeの口座のみ使用）';
 COMMENT ON COLUMN m_accounts.opening_balance_date IS '初期残高の基準日';
+COMMENT ON COLUMN m_accounts.moneyforward_account_name IS 'マネーフォワードME連携時の口座表示名（CSVの「保有金融機関」列とのマッチングに使用。未設定の場合はaccount_nameで照合。ADR 0009）';
 COMMENT ON COLUMN m_accounts.created_at IS '作成日時';
 COMMENT ON COLUMN m_accounts.updated_at IS '更新日時';
 
@@ -347,6 +349,7 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
 - マネーフォワードMEスクレイピング自動化（第二段階）の具体的な実装方式・エラー時のリトライ/手動介入フロー。
 - 正規表現パース失敗時の低コストLLMフォールバック（Claude Haiku等）導入要否。
 - 各クレジットカード会社の実際の速報メールサンプル入手・フォーマット確認（パーサー実装の前提条件）。
+- マネーフォワードME資産評価CSVの実サンプル未入手のため、`app/services/mf_assets_csv.py`の列名エイリアスは一般的に知られている表記から推測している。実サンプル入手後に列名マッピングの検証・調整が必要（証券の銘柄種別[国内株式/投資信託]判定もキーワードヒューリスティックであり要検証、ADR 0009関連）。
 - 外貨建て資産（米国株・海外ETF等）の原通貨・為替レート分解管理。
 - 現金（財布）払いなど、自動取込元のない取引の手動新規登録機能。
 - 過去データの遡及取込（現状は稼働開始日以降のみを対象とする）。
