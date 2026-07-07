@@ -295,7 +295,7 @@ class BatchLog(Base):
     status: Mapped[str] = mapped_column(comment="実行結果（success/partial_success/failed）")
     new_transaction_count: Mapped[int] = mapped_column(default=0, comment="新規取込件数")
     transfer_detected_count: Mapped[int] = mapped_column(default=0, comment="振替検知件数")
-    institution_results: Mapped[dict | None] = mapped_column(
+    institution_results: Mapped[list | None] = mapped_column(
         JSONB, comment="機関ごとの成否内訳（JSON配列: 機関名/status/件数またはエラー内容）"
     )
     error_message: Mapped[str | None] = mapped_column(

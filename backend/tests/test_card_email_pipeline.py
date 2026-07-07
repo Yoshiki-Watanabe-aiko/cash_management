@@ -177,6 +177,50 @@ def test_import_card_emails_counts_unresolved_account_when_no_matching_mailbox_a
     assert summary.new_transaction_count == 0
 
 
+class _RaisingParser:
+    def parse(self, message):
+        raise ValueError("パース処理中の想定外エラー")
+
+
+def test_import_card_emails_isolates_parser_exception_from_other_mails(db_session, monkeypatch):
+    broken_institution = _credit_card_institution(db_session, "三井住友カード")
+    broken_institution.card_alert_sender_email = "alerts@smcc.example"
+    ok_institution = _credit_card_institution(db_session, "楽天カード")
+    ok_institution.card_alert_sender_email = "alerts@rakuten-card.example"
+    db_session.flush()
+    ok_account = _make_personal_card_account(db_session, ok_institution.id, "パイプラインカード個人E")
+
+    parsed_ok = ParsedCardTransaction(
+        transaction_date=datetime.date(2026, 7, 5),
+        amount=decimal.Decimal("-800"),
+        description="隔離テスト後続店",
+        message_id="<card-after-error@example>",
+    )
+    register_parser(broken_institution.institution_name, _RaisingParser())
+    register_parser(ok_institution.institution_name, _StubParser(parsed_ok))
+    _mock_personal_mailbox_only(
+        monkeypatch,
+        [
+            _fake_mail("alerts@smcc.example", "<card-error@example>"),
+            _fake_mail("alerts@rakuten-card.example", "<card-after-error@example>"),
+        ],
+    )
+
+    try:
+        summary = import_card_emails(db_session, as_of=datetime.date(2026, 7, 8))
+    finally:
+        _PARSERS.pop(broken_institution.institution_name, None)
+        _PARSERS.pop(ok_institution.institution_name, None)
+
+    assert summary.parse_error_count == 1
+    assert summary.new_transaction_count == 1
+
+    txn = db_session.execute(
+        select(Transaction).where(Transaction.account_id == ok_account.id)
+    ).scalar_one()
+    assert txn.description == "隔離テスト後続店"
+
+
 def test_import_card_emails_flags_last4_mismatch_but_still_inserts(db_session, monkeypatch):
     institution = _credit_card_institution(db_session, "イオンカード")
     institution.card_alert_sender_email = "alerts@aeon-card.example"

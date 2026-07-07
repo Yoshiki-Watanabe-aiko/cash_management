@@ -1,4 +1,5 @@
 import datetime
+import logging
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +21,8 @@ from app.services.mf_assets_csv import parse_assets_csv
 from app.services.mf_transactions_csv import parse_transactions_csv
 from app.services.transfer_detection import detect_and_link_transfers
 
+logger = logging.getLogger(__name__)
+
 _DEFAULT_BUSINESS_RATIO = 100
 _TRANSACTIONS_SOURCE_TYPE = "moneyforward_csv"
 
@@ -32,6 +35,7 @@ class ImportSummary:
     unresolved_institution_labels: list[str] = field(default_factory=list)
     asset_snapshot_count: int = 0
     transfer_detected_count: int = 0
+    failed_files: list[str] = field(default_factory=list)
 
 
 def _list_csv_files(folder: Path) -> list[Path]:
@@ -93,10 +97,25 @@ def _import_transactions_file(session: Session, path: Path, summary: ImportSumma
 
 
 def import_transactions_folder(session: Session, folder: Path, as_of: datetime.date) -> ImportSummary:
-    """import/transactions/配下のCSVを取り込む。対象ファイルなしは正常スキップ。"""
+    """import/transactions/配下のCSVを取り込む。対象ファイルなしは正常スキップ。
+
+    ファイル単位でSAVEPOINTに囲み、1ファイルのパース失敗が他ファイルの取込をブロックしない
+    ようにする(ADR 0008)。失敗したファイルは移動せず、次回バッチで再試行される。
+    """
     summary = ImportSummary()
     for path in _list_csv_files(folder):
-        _import_transactions_file(session, path, summary)
+        file_summary = ImportSummary()
+        try:
+            with session.begin_nested():
+                _import_transactions_file(session, path, file_summary)
+        except Exception:
+            summary.failed_files.append(path.name)
+            logger.exception("取引明細CSVの取込に失敗しました: %s", path.name)
+            continue
+
+        summary.new_transaction_count += file_summary.new_transaction_count
+        summary.duplicate_skipped_count += file_summary.duplicate_skipped_count
+        summary.unresolved_institution_labels.extend(file_summary.unresolved_institution_labels)
         summary.files_processed += 1
         _move_to_processed(path, as_of)
     return summary
@@ -122,10 +141,24 @@ def _import_assets_file(session: Session, path: Path, summary: ImportSummary) ->
 
 
 def import_assets_folder(session: Session, folder: Path, as_of: datetime.date) -> ImportSummary:
-    """import/assets/配下のCSVを取り込む。対象ファイルなしは正常スキップ。"""
+    """import/assets/配下のCSVを取り込む。対象ファイルなしは正常スキップ。
+
+    ファイル単位でSAVEPOINTに囲み、1ファイルのパース失敗が他ファイルの取込をブロックしない
+    ようにする(ADR 0008)。失敗したファイルは移動せず、次回バッチで再試行される。
+    """
     summary = ImportSummary()
     for path in _list_csv_files(folder):
-        _import_assets_file(session, path, summary)
+        file_summary = ImportSummary()
+        try:
+            with session.begin_nested():
+                _import_assets_file(session, path, file_summary)
+        except Exception:
+            summary.failed_files.append(path.name)
+            logger.exception("資産評価CSVの取込に失敗しました: %s", path.name)
+            continue
+
+        summary.asset_snapshot_count += file_summary.asset_snapshot_count
+        summary.unresolved_institution_labels.extend(file_summary.unresolved_institution_labels)
         summary.files_processed += 1
         _move_to_processed(path, as_of)
     return summary
