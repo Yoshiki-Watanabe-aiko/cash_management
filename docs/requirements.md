@@ -53,6 +53,7 @@
 - カード会社の判別は送信元メールアドレス（Fromヘッダ）、個人用/事業用の判別は受信メールボックスで行う（[ADR 0006](../docs/adr/0006-card-account-resolution-by-mailbox.md)）。
 - 補助的な検証として、メール本文からカード番号下4桁を抽出し、想定する口座と矛盾がないか確認する。
 - カード会社ごとに正規表現ベースのパーサーを実装（日付・金額・店舗名を抽出）。実メールサンプルが入手できた会社から順次実装する。
+- **実装状況**: IMAP接続・送信元アドレスによる金融機関解決（`m_institutions.card_alert_sender_email`）・受信メールボックスによる口座解決・下4桁整合性検証・重複防止（`t_transactions.source_hash`）・パーサー登録レジストリの一連のフレームワークは実装済み。実メールサンプルが未入手のため、カード会社別パーサー本体は未実装（レジストリは空）。詳細はADR 0010を参照。
 
 ### 4.2 銀行・証券・ローン：マネーフォワードME経由
 - **入出金明細**と**資産評価額（証券・ローン残高）**は別々のCSVエクスポート・別フォルダで取込む（例: `import/transactions/`, `import/assets/`）。
@@ -122,6 +123,7 @@ CREATE TABLE m_institutions (
     id SERIAL PRIMARY KEY,
     institution_name VARCHAR(100) NOT NULL,
     institution_type VARCHAR(50) NOT NULL,
+    card_alert_sender_email VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -129,6 +131,7 @@ COMMENT ON TABLE m_institutions IS '金融機関マスタ';
 COMMENT ON COLUMN m_institutions.id IS '金融機関ID';
 COMMENT ON COLUMN m_institutions.institution_name IS '金融機関名（例: 楽天銀行、三井住友カード）';
 COMMENT ON COLUMN m_institutions.institution_type IS '機関種別（bank/credit_card/securities/qr_payment）';
+COMMENT ON COLUMN m_institutions.card_alert_sender_email IS 'クレジットカード利用速報メールの送信元アドレス（Fromヘッダ。institution_type=credit_cardのみ使用。実メールサンプル確認後に設定、ADR 0010）';
 COMMENT ON COLUMN m_institutions.created_at IS '作成日時';
 COMMENT ON COLUMN m_institutions.updated_at IS '更新日時';
 
@@ -145,6 +148,7 @@ CREATE TABLE m_accounts (
     opening_balance NUMERIC(12, 2),
     opening_balance_date DATE,
     moneyforward_account_name VARCHAR(100),
+    card_last4 VARCHAR(4),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -161,6 +165,7 @@ COMMENT ON COLUMN m_accounts.balance_method IS '残高算出方式（cumulative=
 COMMENT ON COLUMN m_accounts.opening_balance IS '初期残高（balance_method=cumulativeの口座のみ使用）';
 COMMENT ON COLUMN m_accounts.opening_balance_date IS '初期残高の基準日';
 COMMENT ON COLUMN m_accounts.moneyforward_account_name IS 'マネーフォワードME連携時の口座表示名（CSVの「保有金融機関」列とのマッチングに使用。未設定の場合はaccount_nameで照合。ADR 0009）';
+COMMENT ON COLUMN m_accounts.card_last4 IS 'クレジットカード番号下4桁（account_type=credit_cardのみ使用。利用速報メール本文からの抽出値との整合性検証用、ADR 0010）';
 COMMENT ON COLUMN m_accounts.created_at IS '作成日時';
 COMMENT ON COLUMN m_accounts.updated_at IS '更新日時';
 
@@ -348,7 +353,7 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
 ## 9. 未確定・今後検討する拡張ポイント
 - マネーフォワードMEスクレイピング自動化（第二段階）の具体的な実装方式・エラー時のリトライ/手動介入フロー。
 - 正規表現パース失敗時の低コストLLMフォールバック（Claude Haiku等）導入要否。
-- 各クレジットカード会社の実際の速報メールサンプル入手・フォーマット確認（パーサー実装の前提条件）。
+- 各クレジットカード会社の実際の速報メールサンプル入手・フォーマット確認（パーサー実装の前提条件）。サンプル入手後は、対象金融機関の`m_institutions.card_alert_sender_email`に送信元アドレスを設定し、`app/services/card_parsers/`に会社別`CardEmailParser`実装を追加してレジストリへ登録する。
 - マネーフォワードME資産評価CSVの実サンプル未入手のため、`app/services/mf_assets_csv.py`の列名エイリアスは一般的に知られている表記から推測している。実サンプル入手後に列名マッピングの検証・調整が必要（証券の銘柄種別[国内株式/投資信託]判定もキーワードヒューリスティックであり要検証、ADR 0009関連）。
 - 外貨建て資産（米国株・海外ETF等）の原通貨・為替レート分解管理。
 - 現金（財布）払いなど、自動取込元のない取引の手動新規登録機能。

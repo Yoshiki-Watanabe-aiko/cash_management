@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Numeric,
+    String,
     UniqueConstraint,
     func,
 )
@@ -28,6 +29,9 @@ class Institution(Base):
     id: Mapped[int] = mapped_column(primary_key=True, comment="金融機関ID")
     institution_name: Mapped[str] = mapped_column(comment="金融機関名（例: 楽天銀行、三井住友カード）")
     institution_type: Mapped[str] = mapped_column(comment="機関種別（bank/credit_card/securities/qr_payment）")
+    card_alert_sender_email: Mapped[str | None] = mapped_column(
+        comment="クレジットカード利用速報メールの送信元アドレス（Fromヘッダ。institution_type=credit_cardのみ使用。実メールサンプル確認後に設定）"
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.current_timestamp(), comment="作成日時"
     )
@@ -71,6 +75,10 @@ class Account(Base):
     )
     moneyforward_account_name: Mapped[str | None] = mapped_column(
         comment="マネーフォワードME連携時の口座表示名（CSVの「保有金融機関」列とのマッチングに使用。未設定の場合はaccount_nameで照合）"
+    )
+    card_last4: Mapped[str | None] = mapped_column(
+        String(4),
+        comment="クレジットカード番号下4桁（account_type=credit_cardのみ使用。利用速報メール本文からの抽出値との整合性検証用）",
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.current_timestamp(), comment="作成日時"
