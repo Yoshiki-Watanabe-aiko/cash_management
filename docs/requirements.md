@@ -347,6 +347,14 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
   - 「未分類の取引にカテゴリルールを再適用」ボタン。
   - 新規手入力（現金払い等、自動取込元のない取引）は今回のスコープ外（9章参照）。
 
+**実装状況**: Phase 6でバックエンドAPI（`backend/app/api/`）を実装済み。フロントエンド（React側、Phase 7）はまだ未着手。
+- ダッシュボード4ウィジェットに対応する`GET /api/dashboard/{net-worth-history,budget-progress,personal-cashflow,category-breakdown}`（`app/services/dashboard_queries.py`）。`budget-progress`/`personal-cashflow`は`business_ratio`按分後、`category-breakdown`は按分せず全額集計（設計判断はADR 0012参照）。いずれも`t_transfers`にリンクされた取引を除外する。
+- 取引管理画面向けに`GET /api/transactions`（口座・カテゴリ・期間・未分類フィルタ、ページング、振替有無フラグ付き）、`PATCH /api/transactions/{id}`（category_id・business_ratioの部分更新、存在しないcategory_id指定時は400）、`POST /api/transactions/recategorize`（未分類[category_id IS NULL]の取引にのみカテゴリルールを再適用、`app/services/transaction_queries.py`）。
+- 手動補正（振替の手動紐づけ）向けに`GET /api/transfers/unlinked-candidates`（直近7日以内・未リンク取引の候補一覧）、`POST /api/transfers`（金額完全一致・営業日0〜3日以内のみ検証し摘要一致は検証しない手動リンク、`app/services/transfer_management.py`）、`DELETE /api/transfers/{id}`（リンク解除）。手動紐づけが自動検知の条件3[摘要一致]を検証しない理由はADR 0012参照。
+- ドロップダウン等の参照用に`GET /api/accounts`・`GET /api/categories`（`app/api/reference.py`）。
+- APIリクエスト単位のDBセッションcommit/rollbackは`app/db/session.py`の`get_db()`に集約（正常終了時commit・例外時rollback、ADR 0012）。
+- テスト: pytest 115件、カバレッジ97%（実PostgreSQLへSAVEPOINTロールバック方式で接続する既存の`db_session`フィクスチャに加え、FastAPI `TestClient`をDB依存関係ごとオーバーライドする`client`フィクスチャを追加）。
+
 ## 8. セキュリティ・インフラ要件
 - **環境変数**: `.env`ファイルを利用し、PostgreSQL認証情報、Discord Webhook URL、Gmail用アプリパスワード（個人用・事業用の2組）、MFログイン情報、口座名義文字列（振替検知用）、長期休暇期間の設定を管理（Git管理外とする）。
 - **CORS設定**: FastAPI側でフロントエンドからのアクセスを許可するCORSミドルウェアを適切に設定する。
