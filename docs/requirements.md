@@ -347,13 +347,22 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
   - 「未分類の取引にカテゴリルールを再適用」ボタン。
   - 新規手入力（現金払い等、自動取込元のない取引）は今回のスコープ外（9章参照）。
 
-**実装状況**: Phase 6でバックエンドAPI（`backend/app/api/`）を実装済み。フロントエンド（React側、Phase 7）はまだ未着手。
+**実装状況**: Phase 6でバックエンドAPI（`backend/app/api/`）、Phase 7でフロントエンド（`frontend/`）を実装済み。
 - ダッシュボード4ウィジェットに対応する`GET /api/dashboard/{net-worth-history,budget-progress,personal-cashflow,category-breakdown}`（`app/services/dashboard_queries.py`）。`budget-progress`/`personal-cashflow`は`business_ratio`按分後、`category-breakdown`は按分せず全額集計（設計判断はADR 0012参照）。いずれも`t_transfers`にリンクされた取引を除外する。
 - 取引管理画面向けに`GET /api/transactions`（口座・カテゴリ・期間・未分類フィルタ、ページング、振替有無フラグ付き）、`PATCH /api/transactions/{id}`（category_id・business_ratioの部分更新、存在しないcategory_id指定時は400）、`POST /api/transactions/recategorize`（未分類[category_id IS NULL]の取引にのみカテゴリルールを再適用、`app/services/transaction_queries.py`）。
 - 手動補正（振替の手動紐づけ）向けに`GET /api/transfers/unlinked-candidates`（直近7日以内・未リンク取引の候補一覧）、`POST /api/transfers`（金額完全一致・営業日0〜3日以内のみ検証し摘要一致は検証しない手動リンク、`app/services/transfer_management.py`）、`DELETE /api/transfers/{id}`（リンク解除）。手動紐づけが自動検知の条件3[摘要一致]を検証しない理由はADR 0012参照。
 - ドロップダウン等の参照用に`GET /api/accounts`・`GET /api/categories`（`app/api/reference.py`）。
 - APIリクエスト単位のDBセッションcommit/rollbackは`app/db/session.py`の`get_db()`に集約（正常終了時commit・例外時rollback、ADR 0012）。
 - テスト: pytest 115件、カバレッジ97%（実PostgreSQLへSAVEPOINTロールバック方式で接続する既存の`db_session`フィクスチャに加え、FastAPI `TestClient`をDB依存関係ごとオーバーライドする`client`フィクスチャを追加）。
+
+**フロントエンド実装（Phase 7、2026-07-08）**:
+- `frontend/`にVite + React 19 + TypeScript 6構成で新規構築。Tailwind CSS v4（`@tailwindcss/vite`）＋shadcn/ui（`components.json`、`style: radix-nova`）でUIコンポーネント基盤を整備し、react-router-dom v7でルーティング（`/`＝ダッシュボード、`/transactions`＝取引管理）、TanStack Query v5でサーバー状態管理、TanStack Table v8で取引データグリッド、Rechartsでチャートを実装。
+- APIクライアント層（`src/api/client.ts`・`src/api/types.ts`）を新規実装。**重要な設計判断**: バックエンドの`decimal.Decimal`フィールド（`amount`・`business_ratio`・`net_worth`・`budget_amount`等）は、FastAPIが`response_model`経由でシリアライズする際にJSON数値ではなく**JSON文字列**として返る（精度保持のためPydantic v2のデフォルト挙動）。実際に稼働中のAPIへ`curl`で確認し（例: `{"income":"0","expense":"0"}`）、フロントの型定義もすべて`string`とした上で、チャート描画・金額比較の直前に`Number()`変換するルールを徹底している（`lib/format.ts`の`formatCurrency`/`formatPercent`は`number | string`を受理）。
+- ダッシュボード4ウィジェット（`src/features/dashboard/`）: 純資産推移（Line Chart）、予算消化率（Progress Bar、超過時は`--expense`色に切替）、個人キャッシュフロー（Bar Chart、収入=`--income`色/支出=`--expense`色）、カテゴリ別支出（Donut Chart）。いずれもローディング・エラー・空状態を個別に描画。
+- 取引管理画面（`src/features/transactions/`）: 口座・カテゴリ・期間・未分類フィルタ、TanStack Tableによるデータグリッド（`getRowId`で取引IDを行キーに固定し、ページ送り・再フェッチ時に別取引へ誤って更新が飛ぶ不具合を防止）、カテゴリ・事業按分率のインライン編集（更新失敗時はエラーメッセージを表示し元の値へ復帰）、「未分類の取引にルールを再適用」ボタン。「振替の手動紐づけ」はタブで分離し、未紐づけ候補から出金側・入金側を選んで`POST /api/transfers`を呼ぶUIを実装（`src/features/transfers/`）。
+- **既知の制約**: 振替リンクの解除（`DELETE /api/transfers/{id}`）はバックエンドに実装済みだが、既存リンクの`transfer_id`を取得できる一覧系APIが存在しないため、フロントエンドから解除する手段は未実装（今回のスコープでは新規リンク作成のみ）。将来的に解除UIを追加する場合は、リンク済み振替を一覧できるバックエンドAPIの追加が前提となる。
+- 品質確認: `npx tsc -b`（型チェック）・`npx oxlint`・`npm run build`をいずれもクリーンな状態で通過。実際に起動したバックエンド（uvicorn）とフロントエンド（Vite dev server）に対しPlaywrightでダッシュボード・取引管理（両タブ）を操作確認し、コンソールエラー0件を確認。react-reviewer・typescript-reviewerエージェントによるレビューを実施し、指摘（Decimal/文字列型不一致、ページング時の行キー不整合によるミューテーション誤爆、ミューテーション失敗時のエラー握りつぶし、アクセシビリティラベル不足、未使用コード等）をすべて反映済み。
+- DB内に実際の取引データがまだ存在しない（Phase 3〜5のバッチが未実行）ため、テーブル・振替候補・チャートはいずれも空状態表示で確認しており、実データでのインタラクション検証（ページング・フィルタ絞り込みの実値確認等）は次回バッチ実行後に別途行う必要がある。
 
 ## 8. セキュリティ・インフラ要件
 - **環境変数**: `.env`ファイルを利用し、PostgreSQL認証情報、Discord Webhook URL、Gmail用アプリパスワード（個人用・事業用の2組）、MFログイン情報、口座名義文字列（振替検知用）、長期休暇期間の設定を管理（Git管理外とする）。
