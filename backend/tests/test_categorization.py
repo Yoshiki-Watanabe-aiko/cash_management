@@ -1,5 +1,5 @@
 from app.models import Category, CategoryRule
-from app.services.categorization import categorize
+from app.services.categorization import categorize, categorize_with_rules, load_category_rules
 
 
 def _make_rule(session, category_name: str, keyword_pattern: str, priority: int) -> None:
@@ -37,3 +37,12 @@ def test_lower_priority_number_wins_on_conflicting_match(db_session):
 
     category_id = categorize(db_session, "コンビニATM手数料")
     assert category_id == high_priority_category.id
+
+
+def test_load_category_rules_and_categorize_with_rules_match_categorize(db_session):
+    _make_rule(db_session, "テスト事前取得カテゴリ", "書店", priority=100)
+
+    rules = load_category_rules(db_session)
+
+    assert categorize_with_rules(rules, "書店で購入") == categorize(db_session, "書店で購入")
+    assert categorize_with_rules(rules, "該当なし") is None

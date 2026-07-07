@@ -16,7 +16,8 @@ def _normalize(text: str) -> str:
     return text.translate(_WHITESPACE_CHARS)
 
 
-def _linked_transaction_ids(session: Session) -> set[int]:
+def linked_transaction_ids(session: Session) -> set[int]:
+    """既にt_transfersにリンク済みの取引ID集合(from/to両方を含む)。"""
     linked_from = session.execute(select(Transfer.from_transaction_id)).scalars().all()
     linked_to = session.execute(select(Transfer.to_transaction_id)).scalars().all()
     return set(linked_from) | set(linked_to)
@@ -25,7 +26,7 @@ def _linked_transaction_ids(session: Session) -> set[int]:
 def find_transfer_candidates(session: Session, as_of: datetime.date) -> list[Transaction]:
     """直近7日以内・未リンクの取引を振替検知の候補として取得する(ADR 0005)。"""
     since_date = as_of - datetime.timedelta(days=_LOOKBACK_DAYS)
-    linked_ids = _linked_transaction_ids(session)
+    linked_ids = linked_transaction_ids(session)
 
     stmt = select(Transaction).where(Transaction.transaction_date >= since_date)
     candidates = session.execute(stmt).scalars().all()
