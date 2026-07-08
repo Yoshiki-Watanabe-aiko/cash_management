@@ -383,3 +383,12 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
 - 外貨建て資産（米国株・海外ETF等）の原通貨・為替レート分解管理。
 - 現金（財布）払いなど、自動取込元のない取引の手動新規登録機能。
 - 過去データの遡及取込（現状は稼働開始日以降のみを対象とする）。
+
+## 10. ドキュメント整備（Phase 9、2026-07-08）
+
+`/plan`で承認された全10フェーズ（Phase 0〜9）の最終フェーズとして、開発者向けセットアップ手順をリポジトリ内に整備した。
+
+- ルート [`README.md`](../README.md) を新規作成し、プロジェクト概要・ディレクトリ構成・DB/バックエンド/フロントエンド/日次バッチのセットアップ手順・テストコマンド一覧・環境変数の参照先をまとめた。
+- `backend/README.md`（Phase 0時点では空の雛形のまま放置されていた）を実内容に置き換え、uv/Alembic/シード投入/uvicorn起動/日次バッチ手動実行/pytest実行手順を記載。
+- `frontend/README.md`（Vite雛形の英語テンプレート文言のまま放置されていた）を実内容に置き換え、npm scripts一覧・Phase 6〜8で確定した重要な設計判断（Decimalフィールドが文字列で返る点、TanStack Tableの`getRowId`必須、shadcn/ui Selectの空文字列初期化）・テストの分担（Vitest/Playwright）を記載。
+- `docs/requirements.md`（本ファイル）・`CONTEXT.md`・`docs/adr/0001`〜`0012`は各Phaseの実装のたびに継続的に更新済みのため、Phase 9では追加の内容変更は行わず、ルートREADMEからのリンク整備のみ行った。
