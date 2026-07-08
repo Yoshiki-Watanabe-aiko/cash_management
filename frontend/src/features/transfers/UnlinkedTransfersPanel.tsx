@@ -17,8 +17,8 @@ export function UnlinkedTransfersPanel() {
 
   const fromSelectId = useId()
   const toSelectId = useId()
-  const [fromId, setFromId] = useState<string>()
-  const [toId, setToId] = useState<string>()
+  const [fromId, setFromId] = useState('')
+  const [toId, setToId] = useState('')
   const [errorMessage, setErrorMessage] = useState<string>()
 
   const accountNameById = new Map(accounts?.map((account) => [account.id, account.account_name]))
@@ -39,8 +39,8 @@ export function UnlinkedTransfersPanel() {
       { from_transaction_id: Number(fromId), to_transaction_id: Number(toId) },
       {
         onSuccess: () => {
-          setFromId(undefined)
-          setToId(undefined)
+          setFromId('')
+          setToId('')
         },
         onError: (error) => {
           setErrorMessage(error instanceof ApiError ? error.message : '紐づけに失敗しました')

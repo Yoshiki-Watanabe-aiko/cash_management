@@ -353,7 +353,7 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
 - 手動補正（振替の手動紐づけ）向けに`GET /api/transfers/unlinked-candidates`（直近7日以内・未リンク取引の候補一覧）、`POST /api/transfers`（金額完全一致・営業日0〜3日以内のみ検証し摘要一致は検証しない手動リンク、`app/services/transfer_management.py`）、`DELETE /api/transfers/{id}`（リンク解除）。手動紐づけが自動検知の条件3[摘要一致]を検証しない理由はADR 0012参照。
 - ドロップダウン等の参照用に`GET /api/accounts`・`GET /api/categories`（`app/api/reference.py`）。
 - APIリクエスト単位のDBセッションcommit/rollbackは`app/db/session.py`の`get_db()`に集約（正常終了時commit・例外時rollback、ADR 0012）。
-- テスト: pytest 115件、カバレッジ97%（実PostgreSQLへSAVEPOINTロールバック方式で接続する既存の`db_session`フィクスチャに加え、FastAPI `TestClient`をDB依存関係ごとオーバーライドする`client`フィクスチャを追加）。
+- テスト: pytest 122件、カバレッジ98%（実PostgreSQLへSAVEPOINTロールバック方式で接続する既存の`db_session`フィクスチャに加え、FastAPI `TestClient`をDB依存関係ごとオーバーライドする`client`フィクスチャを追加。件数・カバレッジはPhase 8でのギャップ埋めを含む最終値）。
 
 **フロントエンド実装（Phase 7、2026-07-08）**:
 - `frontend/`にVite + React 19 + TypeScript 6構成で新規構築。Tailwind CSS v4（`@tailwindcss/vite`）＋shadcn/ui（`components.json`、`style: radix-nova`）でUIコンポーネント基盤を整備し、react-router-dom v7でルーティング（`/`＝ダッシュボード、`/transactions`＝取引管理）、TanStack Query v5でサーバー状態管理、TanStack Table v8で取引データグリッド、Rechartsでチャートを実装。
@@ -363,6 +363,12 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
 - **既知の制約**: 振替リンクの解除（`DELETE /api/transfers/{id}`）はバックエンドに実装済みだが、既存リンクの`transfer_id`を取得できる一覧系APIが存在しないため、フロントエンドから解除する手段は未実装（今回のスコープでは新規リンク作成のみ）。将来的に解除UIを追加する場合は、リンク済み振替を一覧できるバックエンドAPIの追加が前提となる。
 - 品質確認: `npx tsc -b`（型チェック）・`npx oxlint`・`npm run build`をいずれもクリーンな状態で通過。実際に起動したバックエンド（uvicorn）とフロントエンド（Vite dev server）に対しPlaywrightでダッシュボード・取引管理（両タブ）を操作確認し、コンソールエラー0件を確認。react-reviewer・typescript-reviewerエージェントによるレビューを実施し、指摘（Decimal/文字列型不一致、ページング時の行キー不整合によるミューテーション誤爆、ミューテーション失敗時のエラー握りつぶし、アクセシビリティラベル不足、未使用コード等）をすべて反映済み。
 - DB内に実際の取引データがまだ存在しない（Phase 3〜5のバッチが未実行）ため、テーブル・振替候補・チャートはいずれも空状態表示で確認しており、実データでのインタラクション検証（ページング・フィルタ絞り込みの実値確認等）は次回バッチ実行後に別途行う必要がある。
+
+**テスト実装（Phase 8、2026-07-08）**:
+- バックエンド: `app/cli/run_daily_import.py`（DB接続失敗時のDiscord簡易通知経路・batch_log.status=failed時のexit code 1・機関別ログ出力）、`app/db/session.py`の`get_db()`（commit/rollback分岐）、`app/api/health.py`の未テストだった正常系をそれぞれ追加し、pytestを115件→122件・カバレッジ97%→98%に引き上げた。
+- フロントエンド単体・コンポーネントテスト: Vitest + React Testing Library + jsdomを新規導入（`vite.config.ts`の`test`ブロック、`src/test/setup.ts`）。`lib/format.ts`（Decimal-as-string入力のフォーマット）、`TransactionsTable`（ページ送り時に別取引へ誤って更新が飛ばないことを検証する回帰テストを含む）、`TransactionFiltersBar`、`BudgetProgressWidget`、`UnlinkedTransfersPanel`の計23件を追加。Radix Selectはjsdom上での実操作が困難なため、Select操作を伴わない状態・native要素の検証に留め、実際の選択操作はPlaywright E2Eで担保する設計とした。
+- E2E: Playwright（`frontend/playwright.config.ts`、`frontend/e2e/`）を新規導入。**本番用`cash_management`データベースをテストで汚さないよう、専用の`cash_management_test`データベースを分離**（ユーザー判断）。`cash_mgmt_user`はCREATEDB権限を持たないため、`batch/create_e2e_test_database.sql`をpostgresスーパーユーザーで一度だけ実行してデータベースを作成する運用とし（一度きりの手動セットアップ、Phase 5のタスクスケジューラ登録と同様の位置づけ）、以降のスキーマ破棄・再作成・シード投入は`backend/app/db/e2e_seed.py`（Playwrightの`globalSetup`から`DATABASE_URL`をテストDB向けに上書きして起動）が毎回自動で行う。誤って本番DBに対して実行してしまう事故を防ぐため、`e2e_seed.py`はデータベース名に"test"を含まない場合は実行を拒否する安全装置を持つ。バックエンド(ポート8100)・フロントエンド(ポート4173)を`playwright.config.ts`の`webServer`から起動し、ダッシュボード4ウィジェット表示・取引管理（未分類フィルタ・カテゴリ再適用）・振替の手動紐づけの3シナリオを検証する3件のE2Eテストを実装、全件パスを確認。
+- **E2Eで発見した実バグを修正**: `UnlinkedTransfersPanel`の出金側/入金側`Select`が`useState<string>()`(初期値`undefined`)を使っていたため、紐づけ成功後にstateを`undefined`へ戻してもRadix Selectの表示が「uncontrolled→controlled→uncontrolled」の遷移で正しくプレースホルダに戻らない不具合があった。`useState('')`に変更し、常にcontrolledな空文字列を「未選択」の番兵値として使うよう修正した。
 
 ## 8. セキュリティ・インフラ要件
 - **環境変数**: `.env`ファイルを利用し、PostgreSQL認証情報、Discord Webhook URL、Gmail用アプリパスワード（個人用・事業用の2組）、MFログイン情報、口座名義文字列（振替検知用）、長期休暇期間の設定を管理（Git管理外とする）。
