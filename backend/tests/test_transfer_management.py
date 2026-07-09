@@ -133,6 +133,26 @@ def test_delete_transfer_link_returns_false_when_not_found(db_session):
     assert transfer_management.delete_transfer_link(db_session, 999999999) is False
 
 
+def test_list_linked_transfers_returns_transfer_with_both_transactions(db_session):
+    account_a = _make_account(db_session, "テスト振替一覧口座A")
+    account_b = _make_account(db_session, "テスト振替一覧口座B")
+    day = datetime.date(2026, 6, 1)
+    txn_out = _make_transaction(db_session, account_a.id, day, decimal.Decimal("-8000"), "出金", "list-out")
+    txn_in = _make_transaction(db_session, account_b.id, day, decimal.Decimal("8000"), "入金", "list-in")
+    transfer = Transfer(from_transaction_id=txn_out.id, to_transaction_id=txn_in.id, match_confidence="manual")
+    db_session.add(transfer)
+    db_session.flush()
+
+    rows = transfer_management.list_linked_transfers(db_session)
+    matching = [row for row in rows if row[0].id == transfer.id]
+
+    assert len(matching) == 1
+    result_transfer, result_from, result_to = matching[0]
+    assert result_transfer.match_confidence == "manual"
+    assert result_from.id == txn_out.id
+    assert result_to.id == txn_in.id
+
+
 def test_list_unlinked_candidates_excludes_already_linked(db_session):
     account_a = _make_account(db_session, "テスト候補口座A")
     account_b = _make_account(db_session, "テスト候補口座B")

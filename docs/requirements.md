@@ -360,7 +360,7 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
 - APIクライアント層（`src/api/client.ts`・`src/api/types.ts`）を新規実装。**重要な設計判断**: バックエンドの`decimal.Decimal`フィールド（`amount`・`business_ratio`・`net_worth`・`budget_amount`等）は、FastAPIが`response_model`経由でシリアライズする際にJSON数値ではなく**JSON文字列**として返る（精度保持のためPydantic v2のデフォルト挙動）。実際に稼働中のAPIへ`curl`で確認し（例: `{"income":"0","expense":"0"}`）、フロントの型定義もすべて`string`とした上で、チャート描画・金額比較の直前に`Number()`変換するルールを徹底している（`lib/format.ts`の`formatCurrency`/`formatPercent`は`number | string`を受理）。
 - ダッシュボード4ウィジェット（`src/features/dashboard/`）: 純資産推移（Line Chart）、予算消化率（Progress Bar、超過時は`--expense`色に切替）、個人キャッシュフロー（Bar Chart、収入=`--income`色/支出=`--expense`色）、カテゴリ別支出（Donut Chart）。いずれもローディング・エラー・空状態を個別に描画。
 - 取引管理画面（`src/features/transactions/`）: 口座・カテゴリ・期間・未分類フィルタ、TanStack Tableによるデータグリッド（`getRowId`で取引IDを行キーに固定し、ページ送り・再フェッチ時に別取引へ誤って更新が飛ぶ不具合を防止）、カテゴリ・事業按分率のインライン編集（更新失敗時はエラーメッセージを表示し元の値へ復帰）、「未分類の取引にルールを再適用」ボタン。「振替の手動紐づけ」はタブで分離し、未紐づけ候補から出金側・入金側を選んで`POST /api/transfers`を呼ぶUIを実装（`src/features/transfers/`）。
-- **既知の制約**: 振替リンクの解除（`DELETE /api/transfers/{id}`）はバックエンドに実装済みだが、既存リンクの`transfer_id`を取得できる一覧系APIが存在しないため、フロントエンドから解除する手段は未実装（今回のスコープでは新規リンク作成のみ）。将来的に解除UIを追加する場合は、リンク済み振替を一覧できるバックエンドAPIの追加が前提となる。
+- **既知の制約（Phase 10で解消）**: 振替リンクの解除（`DELETE /api/transfers/{id}`）はバックエンドに実装済みだが、既存リンクの`transfer_id`を取得できる一覧系APIが存在しないため、フロントエンドから解除する手段は未実装だった（Phase 7時点では新規リンク作成のみ）。Phase 10で`GET /api/transfers`一覧APIと`LinkedTransfersPanel.tsx`解除UIを追加し解消（11章参照）。
 - 品質確認: `npx tsc -b`（型チェック）・`npx oxlint`・`npm run build`をいずれもクリーンな状態で通過。実際に起動したバックエンド（uvicorn）とフロントエンド（Vite dev server）に対しPlaywrightでダッシュボード・取引管理（両タブ）を操作確認し、コンソールエラー0件を確認。react-reviewer・typescript-reviewerエージェントによるレビューを実施し、指摘（Decimal/文字列型不一致、ページング時の行キー不整合によるミューテーション誤爆、ミューテーション失敗時のエラー握りつぶし、アクセシビリティラベル不足、未使用コード等）をすべて反映済み。
 - DB内に実際の取引データがまだ存在しない（Phase 3〜5のバッチが未実行）ため、テーブル・振替候補・チャートはいずれも空状態表示で確認しており、実データでのインタラクション検証（ページング・フィルタ絞り込みの実値確認等）は次回バッチ実行後に別途行う必要がある。
 
@@ -392,3 +392,30 @@ CREATE INDEX idx_t_asset_snapshots_date ON t_asset_snapshots(snapshot_date);
 - `backend/README.md`（Phase 0時点では空の雛形のまま放置されていた）を実内容に置き換え、uv/Alembic/シード投入/uvicorn起動/日次バッチ手動実行/pytest実行手順を記載。
 - `frontend/README.md`（Vite雛形の英語テンプレート文言のまま放置されていた）を実内容に置き換え、npm scripts一覧・Phase 6〜8で確定した重要な設計判断（Decimalフィールドが文字列で返る点、TanStack Tableの`getRowId`必須、shadcn/ui Selectの空文字列初期化）・テストの分担（Vitest/Playwright）を記載。
 - `docs/requirements.md`（本ファイル）・`CONTEXT.md`・`docs/adr/0001`〜`0012`は各Phaseの実装のたびに継続的に更新済みのため、Phase 9では追加の内容変更は行わず、ルートREADMEからのリンク整備のみ行った。
+
+## 11. マスタデータ管理機能の追加（Phase 10、2026-07-09）
+
+全10フェーズ（Phase 0〜9）完了後、ユーザーからの改善提案依頼を受けて、これまでバックエンドAPI・フロントエンド画面が存在しなかった4つのマスタデータ管理機能を追加した。5並列コードレビュー（python-reviewer/react-reviewer/typescript-reviewer/security-reviewer/code-reviewer）を実施し、検出されたHIGH 5件・MEDIUM 6件・LOW 4件の指摘をすべて修正済み。
+
+**実装内容**:
+1. **予算(`m_budgets`)のフルCRUD**: `GET/POST /api/budgets`・`PATCH/DELETE /api/budgets/{id}`（`app/services/budget_management.py`）。フロント`frontend/src/features/budgets/`に予算一覧・年月/区分フィルタ・作成ダイアログ・金額インライン編集・削除を実装。
+2. **振替リンク一覧API+解除UI**: `GET /api/transfers`（`app/services/transfer_management.py`の`list_linked_transfers`）を新規追加し、Phase 7時点で「一覧APIが無いため解除UIを実装できない」としていた既知の制約を解消。フロント`frontend/src/features/transfers/LinkedTransfersPanel.tsx`でリンク済み振替の一覧表示・`DELETE /api/transfers/{id}`による解除を実装。
+3. **カテゴリルール(`m_category_rules`)のフルCRUD**: `GET/POST /api/category-rules`・`PATCH/DELETE /api/category-rules/{id}`（`app/services/category_rule_management.py`）。フロント`frontend/src/features/category-rules/`に優先度順一覧・作成ダイアログ・優先度インライン編集・削除を実装。
+4. **口座(`m_accounts`)のCreate/Update**: `POST /api/accounts`・`PATCH /api/accounts/{account_id}`（`app/services/account_management.py`）と参照用`GET /api/institutions`。**意図的にDeleteは実装しない**設計判断（`t_transactions`/`t_asset_snapshots`がON DELETE CASCADEのため、`is_active`フラグでの無効化を正規の削除手段とする）。フロント`frontend/src/features/accounts/AccountsPage.tsx`に口座一覧・条件付き入力項目（残高追跡有無・残高算出方式に応じて初期残高/初期残高基準日/マネーフォワードME連携口座名の入力欄を出し分け）を持つ作成ダイアログ・有効/無効インライン切替を実装。
+
+**コードレビュー指摘の修正**（HIGH 5件・MEDIUM 6件・LOW 4件、すべて反映済み）:
+- **HIGH**: `account_management.update_account`・`category_rule_management.update_category_rule`が、PATCHでNOT NULL列に明示的に`null`を送ると検証をすり抜けて`IntegrityError`（未処理500）になっていた不具合を修正。両関数の冒頭でNOT NULL列への`null`指定を明示的に検出し`AccountValidationError`/`CategoryRuleValidationError`を送出するよう変更（`NOT_NULLABLE_UPDATE_FIELDS`定数）。回帰テストを両サービス・両APIに追加。
+- **HIGH**: 口座作成フォームが`default_business_ratio`を送信せずPydanticデフォルト値`100.00`に依存していたため、個人専用口座（5.1章の規約では`default_business_ratio=0`）でも事業按分率100%が登録される不整合を修正。`is_business`から`default_business_ratio`（事業=100、個人=0）を導出して送信するよう変更。
+- **HIGH**: `BudgetsPage.tsx`の`BudgetAmountCell`・`CategoryRulesPage.tsx`の`PriorityCell`が、サーバー側の値が変わってもインライン編集中のローカルstateを再同期していなかった（`TransactionsTable.tsx`の`BusinessRatioCell`と異なるパターンだった）不具合を修正。同じ`useEffect(() => setValue(...), [対象の値])`パターンを追加。
+- **HIGH**: 口座作成フォームにバックエンドの`_validate_business_rules`に対応するクライアント側事前バリデーション（残高追跡時のbalance_method必須、`balance_method=cumulative`時のopening_balance/opening_balance_date必須）が無く、未入力のまま送信すると生の400エラーになっていた問題を修正。
+- **HIGH（アクセシビリティ）**: `BudgetsPage.tsx`の「区分」、`AccountsPage.tsx`の「口座種別」「個人/事業区分」「残高追跡」「残高算出方式」の各Selectに`useId()`+`htmlFor`のラベル関連付けが無かった問題を、同ファイル内の他のSelectと同じパターンで統一。
+- **MEDIUM**: `account_management.py`の`list_accounts_detail()`が未使用のデッドコード（実際の`GET /api/accounts`は`reference.py`が別途インラインクエリで重複実装していた）だった問題を、`reference.py`側から`list_accounts_detail()`を呼ぶよう配線し直して解消。
+- **MEDIUM**: `CategoryRulesPage.tsx`の優先度入力が空文字列だと`Number('')`が`0`になり暗黙的に有効値として送信される不具合を修正（空文字列を明示的にエラー扱い）。
+- **MEDIUM**: `card_last4`がバックエンドの`pattern=r"^\d{4}$"`検証に頼っていたため4桁未満でも送信されバックエンドで拒否されていた問題を、フロント側の送信前チェックで解消。
+- **MEDIUM**: `balance_method=moneyforward`選択時に`moneyforward_account_name`の入力欄が無かった問題を追加（ADR 0009のMFME CSV照合列との整合性確保）。
+- **MEDIUM**: 予算・カテゴリルール・口座の3つの作成ダイアログが`Button onClick`のみでEnterキー送信ができなかった問題を、`<form onSubmit>`＋`Button type="submit"`に変更して解消。
+- **LOW（セキュリティ）**: `backend/app/schemas/category_rule.py`の`keyword_pattern`に`max_length`が無かった問題に`max_length=255`を追加。
+- **LOW（TypeScript）**: `account_type`/`balance_method`/`institution_type`/`match_confidence`が`string`型のままだった問題を、`frontend/src/api/types.ts`にリテラルユニオン型（`AccountType`/`BalanceMethod`/`InstitutionType`/`MatchConfidence`）を新設して型安全化。`AccountsPage.tsx`の`opening_balance`送信前に`Number.isNaN`ガードを追加(他2フォームと統一)。
+- **LOW（バックエンド）**: `balance_method`を`cumulative`から他方式に変更した際に古い`opening_balance`/`opening_balance_date`が残留していた問題を、`update_account`で`balance_method`が`cumulative`以外に変わった際にこれらを`null`クリアするよう修正。
+
+**テスト**: バックエンドpytest 187件全パス（新規回帰テスト含む）、カバレッジ98%。フロントエンドvitest 38件全パス、`tsc -b`/`oxlint`/`npm run build`クリーン。

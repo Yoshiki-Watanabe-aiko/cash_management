@@ -1,10 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Receipt, Wallet } from 'lucide-react'
+import { LayoutDashboard, Landmark, ListChecks, PiggyBank, Receipt, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/', label: 'ダッシュボード', icon: LayoutDashboard },
   { to: '/transactions', label: '取引管理', icon: Receipt },
+  { to: '/budgets', label: '予算管理', icon: PiggyBank },
+  { to: '/category-rules', label: '分類ルール', icon: ListChecks },
+  { to: '/accounts', label: '口座管理', icon: Landmark },
 ]
 
 export function AppShell() {

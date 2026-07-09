@@ -1,6 +1,7 @@
 import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, aliased
 
 from app.core.business_days import business_days_between
 from app.models import Transaction, Transfer
@@ -16,6 +17,19 @@ class TransferLinkError(ValueError):
 def list_unlinked_candidates(session: Session, as_of: datetime.date) -> list[Transaction]:
     """直近7日以内・未リンクの取引を手動紐づけ候補として返す。"""
     return find_transfer_candidates(session, as_of)
+
+
+def list_linked_transfers(session: Session) -> list[tuple[Transfer, Transaction, Transaction]]:
+    """紐づけ済みの振替を、出金・入金それぞれの取引情報付きで新しい順に返す。"""
+    from_txn = aliased(Transaction)
+    to_txn = aliased(Transaction)
+    stmt = (
+        select(Transfer, from_txn, to_txn)
+        .join(from_txn, Transfer.from_transaction_id == from_txn.id)
+        .join(to_txn, Transfer.to_transaction_id == to_txn.id)
+        .order_by(Transfer.linked_at.desc())
+    )
+    return session.execute(stmt).all()
 
 
 def create_manual_transfer_link(session: Session, from_transaction_id: int, to_transaction_id: int) -> Transfer:

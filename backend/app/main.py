@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.accounts import router as accounts_router
+from app.api.budgets import router as budgets_router
+from app.api.category_rules import router as category_rules_router
 from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
 from app.api.reference import router as reference_router
@@ -26,3 +29,6 @@ app.include_router(reference_router)
 app.include_router(dashboard_router)
 app.include_router(transactions_router)
 app.include_router(transfers_router)
+app.include_router(budgets_router)
+app.include_router(category_rules_router)
+app.include_router(accounts_router)

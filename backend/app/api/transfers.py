@@ -5,11 +5,26 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.transaction import TransactionRead
-from app.schemas.transfer import TransferCreate, TransferRead
+from app.schemas.transfer import LinkedTransferRead, LinkedTransferTransaction, TransferCreate, TransferRead
 from app.services import transfer_management
 from app.services.transfer_management import TransferLinkError
 
 router = APIRouter(prefix="/api/transfers", tags=["transfers"])
+
+
+@router.get("", response_model=list[LinkedTransferRead])
+def get_linked_transfers(db: Session = Depends(get_db)) -> list[LinkedTransferRead]:
+    rows = transfer_management.list_linked_transfers(db)
+    return [
+        LinkedTransferRead(
+            id=transfer.id,
+            match_confidence=transfer.match_confidence,
+            linked_at=transfer.linked_at,
+            from_transaction=LinkedTransferTransaction.model_validate(from_txn),
+            to_transaction=LinkedTransferTransaction.model_validate(to_txn),
+        )
+        for transfer, from_txn, to_txn in rows
+    ]
 
 
 @router.get("/unlinked-candidates", response_model=list[TransactionRead])

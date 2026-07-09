@@ -1,10 +1,57 @@
+export type AccountType = 'bank' | 'credit_card' | 'securities' | 'qr_payment' | 'loan'
+export type BalanceMethod = 'cumulative' | 'moneyforward' | 'manual'
+export type InstitutionType = 'bank' | 'credit_card' | 'securities' | 'qr_payment'
+
 export interface Account {
   id: number
+  institution_id: number
   account_name: string
-  account_type: string
+  account_type: AccountType
   is_business: boolean
   is_active: boolean
+  default_business_ratio: string
   tracks_balance: boolean
+  balance_method: BalanceMethod | null
+  opening_balance: string | null
+  opening_balance_date: string | null
+  moneyforward_account_name: string | null
+  card_last4: string | null
+}
+
+export interface AccountCreate {
+  institution_id: number
+  account_name: string
+  account_type: AccountType
+  is_business?: boolean
+  is_active?: boolean
+  default_business_ratio?: number
+  tracks_balance?: boolean
+  balance_method?: BalanceMethod | null
+  opening_balance?: number | null
+  opening_balance_date?: string | null
+  moneyforward_account_name?: string | null
+  card_last4?: string | null
+}
+
+export interface AccountUpdate {
+  institution_id?: number
+  account_name?: string
+  account_type?: AccountType
+  is_business?: boolean
+  is_active?: boolean
+  default_business_ratio?: number
+  tracks_balance?: boolean
+  balance_method?: BalanceMethod | null
+  opening_balance?: number | null
+  opening_balance_date?: string | null
+  moneyforward_account_name?: string | null
+  card_last4?: string | null
+}
+
+export interface Institution {
+  id: number
+  institution_name: string
+  institution_type: InstitutionType
 }
 
 export interface Category {
@@ -66,15 +113,71 @@ export interface RecategorizeResult {
   updated_count: number
 }
 
+export type MatchConfidence = 'auto' | 'manual'
+
 export interface Transfer {
   id: number
   from_transaction_id: number
   to_transaction_id: number
-  match_confidence: string
+  match_confidence: MatchConfidence
   linked_at: string
 }
 
 export interface TransferCreate {
   from_transaction_id: number
   to_transaction_id: number
+}
+
+export interface LinkedTransferTransaction {
+  id: number
+  transaction_date: string
+  amount: string
+  description: string
+  account_id: number | null
+}
+
+export interface LinkedTransfer {
+  id: number
+  match_confidence: MatchConfidence
+  linked_at: string
+  from_transaction: LinkedTransferTransaction
+  to_transaction: LinkedTransferTransaction
+}
+
+export interface Budget {
+  id: number
+  category_id: number
+  year_month: string
+  is_business: boolean
+  budget_amount: string
+}
+
+export interface BudgetCreate {
+  category_id: number
+  year_month: string
+  is_business: boolean
+  budget_amount: number
+}
+
+export interface BudgetUpdate {
+  budget_amount: number
+}
+
+export interface CategoryRule {
+  id: number
+  keyword_pattern: string
+  category_id: number
+  priority: number
+}
+
+export interface CategoryRuleCreate {
+  keyword_pattern: string
+  category_id: number
+  priority: number
+}
+
+export interface CategoryRuleUpdate {
+  keyword_pattern?: string
+  category_id?: number
+  priority?: number
 }
