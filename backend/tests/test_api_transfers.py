@@ -91,6 +91,24 @@ def test_delete_transfer_returns_404_when_not_found(client):
     assert response.status_code == 404
 
 
+def test_get_linked_transfers_includes_transaction_details(client, db_session):
+    account_a = _make_account(db_session, "テストAPI振替一覧口座A")
+    account_b = _make_account(db_session, "テストAPI振替一覧口座B")
+    day = datetime.date(2026, 6, 1)
+    txn_out = _make_transaction(db_session, account_a.id, day, decimal.Decimal("-5000"), "出金", "api-list-out")
+    txn_in = _make_transaction(db_session, account_b.id, day, decimal.Decimal("5000"), "入金", "api-list-in")
+    client.post("/api/transfers", json={"from_transaction_id": txn_out.id, "to_transaction_id": txn_in.id})
+
+    response = client.get("/api/transfers")
+
+    assert response.status_code == 200
+    items = response.json()
+    matching = [item for item in items if item["from_transaction"]["id"] == txn_out.id]
+    assert len(matching) == 1
+    assert matching[0]["to_transaction"]["id"] == txn_in.id
+    assert matching[0]["from_transaction"]["description"] == "出金"
+
+
 def test_get_unlinked_candidates_returns_only_unlinked(client, db_session):
     account = _make_account(db_session, "テストAPI候補口座")
     day = datetime.date(2026, 6, 1)

@@ -12,11 +12,18 @@ vi.mock('@/features/reference/queries', () => ({
     data: [
       {
         id: 1,
+        institution_id: 1,
         account_name: '楽天銀行 個人',
         account_type: 'bank',
         is_business: false,
         is_active: true,
+        default_business_ratio: '0',
         tracks_balance: true,
+        balance_method: 'cumulative',
+        opening_balance: '100000',
+        opening_balance_date: '2026-01-01',
+        moneyforward_account_name: null,
+        card_last4: null,
       },
     ],
   }),

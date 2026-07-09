@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError } from '@/api/client'
+import { LinkedTransfersPanel } from '@/features/transfers/LinkedTransfersPanel'
 import { UnlinkedTransfersPanel } from '@/features/transfers/UnlinkedTransfersPanel'
 import { TransactionFiltersBar } from './TransactionFilters'
 import { TransactionsTable } from './TransactionsTable'
@@ -34,6 +35,7 @@ export function TransactionsPage() {
         <TabsList>
           <TabsTrigger value="list">取引一覧</TabsTrigger>
           <TabsTrigger value="transfers">振替の手動紐づけ</TabsTrigger>
+          <TabsTrigger value="linked-transfers">紐づけ済み振替一覧</TabsTrigger>
         </TabsList>
         <TabsContent value="list" className="space-y-4">
           <TransactionFiltersBar
@@ -54,6 +56,9 @@ export function TransactionsPage() {
         </TabsContent>
         <TabsContent value="transfers">
           <UnlinkedTransfersPanel />
+        </TabsContent>
+        <TabsContent value="linked-transfers">
+          <LinkedTransfersPanel />
         </TabsContent>
       </Tabs>
     </div>
