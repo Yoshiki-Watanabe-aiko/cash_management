@@ -28,6 +28,8 @@ docs/       要件定義書・詳細設計書・課題管理表・rules・ADR
 
 前提: Windows / PostgreSQL 18がローカルにインストール済み / Python 3.14 / Node.js。
 
+実データでの運用開始時は、各設定値（`.env`・金融機関マスタ・口座マスタ）の決め方をまとめた [`docs/運用開始手順書.md`](docs/運用開始手順書.md) を参照。
+
 ### 1. データベース
 
 専用ロール・DBを作成済みであること（`cash_mgmt_user` / `cash_management`）。未作成の場合はpostgresスーパーユーザーで作成する。

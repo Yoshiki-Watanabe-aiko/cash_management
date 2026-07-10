@@ -12,6 +12,7 @@
 - 要件定義書          → @docs/requirements.md
 - 詳細設計書          → @docs/詳細設計書/
 - 課題管理表          → @docs/課題管理表.md
+- 運用開始手順書      → @docs/運用開始手順書.md
 - ドメイン用語集      → @CONTEXT.md
 - 設計判断の記録      → @docs/adr/
 - プロジェクト固有ルール → @docs/rules/（git.md・testing.md。グローバル規約との差分のみ記載）
