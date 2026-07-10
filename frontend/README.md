@@ -1,6 +1,6 @@
 # Frontend（統合資産・経費管理システム）
 
-React 19 + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui。ダッシュボード（純資産推移・予算消化率・キャッシュフロー・カテゴリ別支出）と取引管理画面（フィルタ・インライン編集・振替の手動紐づけ）を提供する。詳細な仕様は [`../docs/requirements.md`](../docs/requirements.md) 7章を参照。
+React 19 + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui。ダッシュボード（純資産推移・予算消化率・キャッシュフロー・カテゴリ別支出）と取引管理画面（フィルタ・インライン編集・振替の手動紐づけ）を提供する。詳細な仕様は [`../docs/詳細設計書/04_ダッシュボードUI設計.md`](../docs/詳細設計書/04_ダッシュボードUI設計.md) を参照。
 
 ## セットアップ
 
