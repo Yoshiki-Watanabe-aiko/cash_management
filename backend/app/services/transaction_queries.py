@@ -1,16 +1,19 @@
 import datetime
+import decimal
+import uuid
 
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Category, Transaction, Transfer
+from app.models import Account, Category, Transaction, Transfer
 from app.services.categorization import categorize_with_rules, load_category_rules
+from app.services.dedup import compute_source_hash
 
 _DEFAULT_PAGE_SIZE = 50
 
 
-class TransactionUpdateError(ValueError):
-    """取引更新時のバリデーションエラー。"""
+class TransactionValidationError(ValueError):
+    """取引作成・更新時のバリデーションエラー。"""
 
 
 def _transfer_exists_expr():
@@ -69,10 +72,45 @@ def update_transaction(session: Session, transaction_id: int, updates: dict) -> 
     new_category_id = updates.get("category_id")
     if "category_id" in updates and new_category_id is not None:
         if session.get(Category, new_category_id) is None:
-            raise TransactionUpdateError("指定されたカテゴリが見つかりません")
+            raise TransactionValidationError("指定されたカテゴリが見つかりません")
 
     for field, value in updates.items():
         setattr(txn, field, value)
+    session.flush()
+    return txn
+
+
+def create_manual_transaction(
+    session: Session,
+    *,
+    account_id: int | None,
+    transaction_date: datetime.date,
+    amount: decimal.Decimal,
+    description: str,
+    category_id: int | None,
+    business_ratio: decimal.Decimal,
+) -> Transaction:
+    """現金払い等、自動取込元のない取引を手動で新規登録する(source_type=manual)。"""
+    if amount == 0:
+        raise TransactionValidationError("金額には0以外の値を指定してください")
+    if account_id is not None and session.get(Account, account_id) is None:
+        raise TransactionValidationError("指定された口座が見つかりません")
+    if category_id is not None and session.get(Category, category_id) is None:
+        raise TransactionValidationError("指定されたカテゴリが見つかりません")
+
+    source_unique_id = f"manual-{uuid.uuid4()}"
+    txn = Transaction(
+        account_id=account_id,
+        transaction_date=transaction_date,
+        amount=amount,
+        description=description,
+        category_id=category_id,
+        business_ratio=business_ratio,
+        source_type="manual",
+        source_hash=compute_source_hash(account_id, transaction_date, amount, description, source_unique_id),
+        raw_data={"manual_entry": True},
+    )
+    session.add(txn)
     session.flush()
     return txn
 

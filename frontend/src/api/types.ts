@@ -109,6 +109,15 @@ export interface TransactionUpdate {
   business_ratio?: number | null
 }
 
+export interface TransactionCreate {
+  account_id?: number | null
+  transaction_date: string
+  amount: number
+  description: string
+  category_id?: number | null
+  business_ratio?: number
+}
+
 export interface RecategorizeResult {
   updated_count: number
 }

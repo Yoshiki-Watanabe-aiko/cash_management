@@ -151,7 +151,7 @@ def test_update_transaction_rejects_unknown_category_id(db_session):
     account = _make_account(db_session, "テスト不正カテゴリ口座")
     txn = _make_transaction(db_session, account.id, datetime.date(2026, 6, 1), -100, "対象", "update-bad-category")
 
-    with pytest.raises(transaction_queries.TransactionUpdateError):
+    with pytest.raises(transaction_queries.TransactionValidationError):
         transaction_queries.update_transaction(db_session, txn.id, {"category_id": 999999999})
 
 
@@ -187,3 +187,97 @@ def test_recategorize_uncategorized_applies_rules_and_skips_already_categorized(
     assert uncategorized_matching.category_id == rule_category.id
     assert uncategorized_no_match.category_id is None
     assert already_categorized.category_id == already_category.id
+
+
+def test_create_manual_transaction_with_account(db_session):
+    account = _make_account(db_session, "テスト手動登録口座")
+    category = Category(category_name="テスト手動登録カテゴリ")
+    db_session.add(category)
+    db_session.flush()
+
+    txn = transaction_queries.create_manual_transaction(
+        db_session,
+        account_id=account.id,
+        transaction_date=datetime.date(2026, 7, 1),
+        amount=decimal.Decimal("-500"),
+        description="現金払い(手動登録)",
+        category_id=category.id,
+        business_ratio=decimal.Decimal("0"),
+    )
+
+    assert txn.id is not None
+    assert txn.source_type == "manual"
+    assert txn.account_id == account.id
+    assert txn.raw_data == {"manual_entry": True}
+
+
+def test_create_manual_transaction_without_account_for_cash_payment(db_session):
+    txn = transaction_queries.create_manual_transaction(
+        db_session,
+        account_id=None,
+        transaction_date=datetime.date(2026, 7, 1),
+        amount=decimal.Decimal("-1000"),
+        description="現金(財布)払い",
+        category_id=None,
+        business_ratio=decimal.Decimal("0"),
+    )
+
+    assert txn.id is not None
+    assert txn.account_id is None
+
+
+def test_create_manual_transaction_allows_duplicate_looking_entries(db_session):
+    """同一日・同一金額・同一摘要でも手動登録は都度別取引として作成できる(source_hashが衝突しない)。"""
+    kwargs = dict(
+        account_id=None,
+        transaction_date=datetime.date(2026, 7, 1),
+        amount=decimal.Decimal("-500"),
+        description="コンビニ",
+        category_id=None,
+        business_ratio=decimal.Decimal("0"),
+    )
+
+    first = transaction_queries.create_manual_transaction(db_session, **kwargs)
+    second = transaction_queries.create_manual_transaction(db_session, **kwargs)
+
+    assert first.id != second.id
+    assert first.source_hash != second.source_hash
+
+
+def test_create_manual_transaction_rejects_zero_amount(db_session):
+    with pytest.raises(transaction_queries.TransactionValidationError):
+        transaction_queries.create_manual_transaction(
+            db_session,
+            account_id=None,
+            transaction_date=datetime.date(2026, 7, 1),
+            amount=decimal.Decimal("0"),
+            description="金額ゼロ",
+            category_id=None,
+            business_ratio=decimal.Decimal("0"),
+        )
+
+
+def test_create_manual_transaction_rejects_unknown_account_id(db_session):
+    with pytest.raises(transaction_queries.TransactionValidationError):
+        transaction_queries.create_manual_transaction(
+            db_session,
+            account_id=999999999,
+            transaction_date=datetime.date(2026, 7, 1),
+            amount=decimal.Decimal("-100"),
+            description="不正口座",
+            category_id=None,
+            business_ratio=decimal.Decimal("0"),
+        )
+
+
+def test_create_manual_transaction_rejects_unknown_category_id(db_session):
+    with pytest.raises(transaction_queries.TransactionValidationError):
+        transaction_queries.create_manual_transaction(
+            db_session,
+            account_id=None,
+            transaction_date=datetime.date(2026, 7, 1),
+            amount=decimal.Decimal("-100"),
+            description="不正カテゴリ",
+            category_id=999999999,
+            business_ratio=decimal.Decimal("0"),
+        )

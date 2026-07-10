@@ -97,3 +97,64 @@ def test_recategorize_endpoint_returns_updated_count(client):
     response = client.post("/api/transactions/recategorize")
     assert response.status_code == 200
     assert "updated_count" in response.json()
+
+
+def test_post_transaction_creates_manual_transaction(client, db_session):
+    account = _make_account(db_session, "テストAPI手動登録口座")
+
+    response = client.post(
+        "/api/transactions",
+        json={
+            "account_id": account.id,
+            "transaction_date": "2026-07-01",
+            "amount": "-500",
+            "description": "現金払い(手動登録)",
+            "business_ratio": 0,
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["source_type"] == "manual"
+    assert body["description"] == "現金払い(手動登録)"
+
+
+def test_post_transaction_without_account_for_cash_payment(client):
+    response = client.post(
+        "/api/transactions",
+        json={
+            "transaction_date": "2026-07-01",
+            "amount": "-1000",
+            "description": "現金(財布)払い",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["account_id"] is None
+
+
+def test_post_transaction_returns_400_for_unknown_account_id(client):
+    response = client.post(
+        "/api/transactions",
+        json={
+            "account_id": 999999999,
+            "transaction_date": "2026-07-01",
+            "amount": "-100",
+            "description": "不正口座",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_post_transaction_returns_400_for_zero_amount(client):
+    response = client.post(
+        "/api/transactions",
+        json={
+            "transaction_date": "2026-07-01",
+            "amount": "0",
+            "description": "金額ゼロ",
+        },
+    )
+
+    assert response.status_code == 400

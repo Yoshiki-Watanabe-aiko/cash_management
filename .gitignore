@@ -17,6 +17,9 @@ node_modules/
 dist/
 .vite/
 
+# Playwright MCP browser verification artifacts (snapshots/console logs, not test code)
+.playwright-mcp/
+
 # Logs
 logs/*.log
 

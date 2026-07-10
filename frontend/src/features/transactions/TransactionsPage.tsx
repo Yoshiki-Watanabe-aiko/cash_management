@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError } from '@/api/client'
 import { LinkedTransfersPanel } from '@/features/transfers/LinkedTransfersPanel'
 import { UnlinkedTransfersPanel } from '@/features/transfers/UnlinkedTransfersPanel'
+import { CreateTransactionDialog } from './CreateTransactionDialog'
 import { TransactionFiltersBar } from './TransactionFilters'
 import { TransactionsTable } from './TransactionsTable'
 import { useRecategorizeTransactions, useTransactionsList, type TransactionFilters } from './queries'
@@ -26,9 +27,12 @@ export function TransactionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">取引管理</h1>
-        <p className="text-sm text-muted-foreground">分類の補正・事業按分比率の調整・振替の手動紐づけを行います</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">取引管理</h1>
+          <p className="text-sm text-muted-foreground">分類の補正・事業按分比率の調整・振替の手動紐づけを行います</p>
+        </div>
+        <CreateTransactionDialog />
       </div>
 
       <Tabs defaultValue="list">

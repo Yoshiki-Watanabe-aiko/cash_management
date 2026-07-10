@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.transaction import (
     RecategorizeResult,
+    TransactionCreate,
     TransactionListResponse,
     TransactionRead,
     TransactionUpdate,
@@ -44,6 +45,15 @@ def get_transactions(
     return TransactionListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.post("", response_model=TransactionRead, status_code=201)
+def post_transaction(payload: TransactionCreate, db: Session = Depends(get_db)) -> TransactionRead:
+    try:
+        txn = transaction_queries.create_manual_transaction(db, **payload.model_dump())
+    except transaction_queries.TransactionValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _to_read_model(txn, is_transferred=False)
+
+
 @router.patch("/{transaction_id}", response_model=TransactionRead)
 def patch_transaction(
     transaction_id: int, update: TransactionUpdate, db: Session = Depends(get_db)
@@ -51,7 +61,7 @@ def patch_transaction(
     updates = update.model_dump(exclude_unset=True)
     try:
         txn = transaction_queries.update_transaction(db, transaction_id, updates)
-    except transaction_queries.TransactionUpdateError as exc:
+    except transaction_queries.TransactionValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if txn is None:
         raise HTTPException(status_code=404, detail="取引が見つかりません")
