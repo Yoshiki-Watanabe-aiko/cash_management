@@ -44,7 +44,7 @@ uv run alembic revision --autogenerate -m "変更内容"
 uv run alembic upgrade head
 ```
 
-新規テーブル・カラムには `docs/requirements.md` 6章の規約（マスタ `m_` / トランザクション `t_` 接頭辞、全テーブル・カラムへの日本語コメント）に従うこと。
+新規テーブル・カラムには `docs/requirements.md` 4章の規約（マスタ `m_` / トランザクション `t_` 接頭辞、全テーブル・カラムへの日本語コメント）に従うこと。DDL詳細は [`../docs/詳細設計書/03_データベース設計.md`](../docs/詳細設計書/03_データベース設計.md) を参照。
 
 ## テスト
 
