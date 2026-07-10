@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient, buildQueryString } from '@/api/client'
-import type { RecategorizeResult, Transaction, TransactionListResponse, TransactionUpdate } from '@/api/types'
+import type {
+  RecategorizeResult,
+  Transaction,
+  TransactionCreate,
+  TransactionListResponse,
+  TransactionUpdate,
+} from '@/api/types'
 
 export interface TransactionFilters {
   accountId?: number
@@ -39,6 +45,17 @@ export function useUpdateTransaction() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['transfers'] })
+    },
+  })
+}
+
+export function useCreateTransaction() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: TransactionCreate) => apiClient.post<Transaction>('/api/transactions', payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
