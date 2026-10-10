@@ -52,7 +52,12 @@ def run_pg_dump(as_of: datetime.date) -> Path:
     # 失われ、pg_dumpがホスト名解決に失敗する。PGPASSWORDのみ追加で上書きする。
     env = {**os.environ, "PGPASSWORD": parsed.password or ""}
 
-    subprocess.run(command, check=True, capture_output=True, env=env, text=True)  # noqa: S603
+    # 日本語WindowsのPostgreSQLクライアントはメッセージをcp932で出す。encodingを省くと
+    # PYTHONUTF8=1の環境(Claude Code内)ではUTF-8で読まれ、失敗時にCalledProcessErrorではなく
+    # UnicodeDecodeErrorで落ちて原因が隠れるため、errors="replace"と合わせて明示する。
+    subprocess.run(  # noqa: S603
+        command, check=True, capture_output=True, env=env, text=True, encoding="cp932", errors="replace"
+    )
     return output_path
 
 
