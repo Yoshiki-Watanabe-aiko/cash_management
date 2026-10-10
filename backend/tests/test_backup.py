@@ -16,9 +16,10 @@ def test_run_pg_dump_builds_expected_command(monkeypatch, tmp_path):
 
     captured = {}
 
-    def fake_run(command, check, capture_output, env, text):
+    def fake_run(command, check, capture_output, env, text, encoding, errors):
         captured["command"] = command
         captured["env"] = env
+        captured["encoding"] = (encoding, errors)
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
@@ -31,6 +32,7 @@ def test_run_pg_dump_builds_expected_command(monkeypatch, tmp_path):
     assert captured["env"]["PGPASSWORD"] == "secret"
     assert "PATH" in captured["env"]  # os.environを継承していることの確認
     assert "secret" not in captured["command"]
+    assert captured["encoding"] == ("cp932", "replace")  # 実行環境の既定に依存させない
 
 
 def test_cleanup_old_backups_keeps_recent_daily_and_deletes_stale(monkeypatch, tmp_path):
